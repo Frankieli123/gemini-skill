@@ -1,75 +1,89 @@
 # collaborating-with-gemini
 
-A Claude Code **Agent Skill** that bridges Claude with Google Gemini CLI for multi-model collaboration on coding tasks.
+**中文**
+- Codex CLI Skill：调用 Gemini CLI 做原型/调试/审阅；Codex 负责落地与验证。
+- 强约束：只输出 raw Unified Diff（以 `--- ` 开始）、禁止 Markdown 代码围栏（```）、禁止实际修改任何文件。
 
-## Overview
+**English**
+- Codex CLI skill: call Gemini CLI for prototyping/debugging/review; Codex applies and verifies.
+- Hard constraints: raw unified diff only (starts with `--- `), no Markdown fences (```), no actual file changes.
 
-This Skill enables Claude to delegate coding tasks to Gemini CLI, combining the strengths of multiple AI models. Gemini handles algorithm implementation, debugging, and code analysis while Claude orchestrates the workflow and refines the output.
+## Install / 安装
 
-## Features
+- Ensure [Gemini CLI](https://github.com/google-gemini/gemini-cli) is installed and `gemini` is in PATH.
+- Copy this folder to:
+  - Windows: `$env:USERPROFILE\.codex\skills\collaborating-with-gemini\`
+  - macOS/Linux: `~/.codex/skills/collaborating-with-gemini/`
 
-- **Multi-turn sessions**: Maintain conversation context across multiple interactions via `SESSION_ID`
-- **Sandboxed execution**: Optional sandbox mode for isolated execution
-- **JSON output**: Structured responses for easy parsing and integration
-- **Cross-platform**: Windows path escaping handled automatically
-- **Code-fence stripping**: Removes a single outer ``` fence from assistant output (default on)
+## Context / 上下文如何给 Gemini
 
-## Installation
+- `--cd` sets Gemini workspace root (and default working directory). Gemini reads project files itself via its CLI tools; the bridge does not pre-send file contents.
+- Multi-turn: keep the returned `SESSION_ID`, then pass it back via `--SESSION_ID`.
 
-1. Ensure [Gemini CLI](https://github.com/google-gemini/gemini-cli) is installed and available in your PATH
-2. Copy this Skill to your Claude Code skills directory:
-   - User-level: `~/.claude/skills/collaborating-with-gemini/`
-   - Project-level: `.claude/skills/collaborating-with-gemini/`
+## Output / 返回内容在哪里
 
-## Usage
+- Foreground: prints JSON to stdout.
+- Background (recommended on Windows): use `--output-file` to write the same JSON to disk.
+- `--output-file` safety: relative paths are written under OS temp directory `codex_gemini_bridge/` (avoids creating files inside your project folder).
 
-### Basic
+## Prompt Template (MUST) / 提示词模板（必加）
 
-```bash
-python scripts/gemini_bridge.py --cd "/path/to/project" --PROMPT "Analyze the authentication flow"
+Append these constraints to every task:
+
+```
+OUTPUT: Unified Diff Patch ONLY. Strictly prohibit any actual modifications.
+Do NOT wrap output in Markdown fences (``` or ```diff). Output raw unified diff starting with '--- '.
 ```
 
-### Multi-turn Session
+## Usage / 用法
 
-```bash
-# Start a session
-python scripts/gemini_bridge.py --cd "/project" --PROMPT "Review login.py for security issues"
-# Response includes SESSION_ID
+### Foreground / 前台
 
-# Continue the session
-python scripts/gemini_bridge.py --cd "/project" --SESSION_ID "uuid-from-response" --PROMPT "Suggest fixes for the issues found"
+```powershell
+python scripts/gemini_bridge.py --cd "E:\\path\\to\\project" --PROMPT "Review auth. OUTPUT: Unified Diff Patch ONLY. Strictly prohibit any actual modifications."
 ```
 
-### Parameters
+### Windows PowerShell (background) / Windows 后台
 
-| Parameter | Required | Description |
-|-----------|----------|-------------|
-| `--PROMPT` | Yes* | Task instruction |
-| `--PROMPT_FILE` | Yes* | Read prompt text from this file (UTF-8) |
-| `--cd` | Yes | Workspace root directory |
-| `--sandbox` | No | Run in sandbox mode (default: off) |
-| `--approval-mode` | No | Gemini approval mode (`default`, `auto_edit`, `yolo`) |
-| `--SESSION_ID` | No | Resume a previous session |
-| `--return-all-messages` | No | Include full reasoning trace in output |
-| `--model` | No | Specify model (use only when explicitly requested) |
-| `--output-file` | No | Write the resulting JSON to this file path |
-| `--gemini-cwd` | No | Run Gemini from this working directory |
-| `--include-directories` | No | Add directories to the Gemini workspace (repeatable) |
-| `--strip-code-fences` | No | Strip a single outer Markdown code fence (default: on) |
+```powershell
+$project = "E:\\path\\to\\project"
+$prompt = @"
+Review the authentication flow.
+OUTPUT: Unified Diff Patch ONLY. Strictly prohibit any actual modifications.
+Do NOT wrap output in Markdown fences (``` or ```diff). Output raw unified diff starting with '--- '.
+"@
 
-\* Provide exactly one of `--PROMPT` or `--PROMPT_FILE`.
+$promptFile = Join-Path $env:TEMP ("codex_gemini_prompt_" + [guid]::NewGuid() + ".txt")
+$outFile = Join-Path $env:TEMP ("codex_gemini_" + [guid]::NewGuid() + ".json")
+Set-Content -LiteralPath $promptFile -Value $prompt -Encoding utf8
 
-### Output Format
+Start-Process -FilePath python -ArgumentList "\"$env:USERPROFILE\\.codex\\skills\\collaborating-with-gemini\\scripts\\gemini_bridge.py\" --cd \"$project\" --PROMPT_FILE \"$promptFile\" --output-file \"$outFile\"" -NoNewWindow
+
+$result = Get-Content -Raw $outFile | ConvertFrom-Json
+Remove-Item -Force $promptFile, $outFile
+$result.agent_messages
+```
+
+### Multi-turn / 续聊
+
+```powershell
+python scripts/gemini_bridge.py --cd "E:\\path\\to\\project" --PROMPT "First task. OUTPUT: Unified Diff Patch ONLY. Strictly prohibit any actual modifications."
+python scripts/gemini_bridge.py --cd "E:\\path\\to\\project" --SESSION_ID "uuid-from-response" --PROMPT "Follow up. OUTPUT: Unified Diff Patch ONLY. Strictly prohibit any actual modifications."
+```
+
+## Output JSON / 输出 JSON
 
 ```json
 {
   "success": true,
   "SESSION_ID": "uuid",
   "agent_messages": "Gemini response text",
-  "all_messages": []
+  "output_file": "C:/Users/.../Temp/codex_gemini_bridge/out.json"
 }
 ```
 
+`output_file` is present only when `--output-file` is used.
+
 ## License
 
-MIT License. See [LICENSE](LICENSE) for details.
+MIT. See [LICENSE](LICENSE).

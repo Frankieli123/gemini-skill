@@ -1,68 +1,48 @@
 ---
 name: collaborating-with-gemini
-description: Delegates coding tasks to Gemini CLI for prototyping, debugging, and code review. Use when needing algorithm implementation, bug analysis, or code quality feedback. Supports multi-turn sessions via SESSION_ID.
+description: Delegates coding tasks to Gemini CLI for prototyping, debugging, and code review. Supports multi-turn sessions via SESSION_ID. / 将任务委托给 Gemini CLI 做原型/调试/审阅，支持 SESSION_ID 续聊。
 ---
 
-## Quick Start
+## Quick Start / 快速开始
 
-```bash
-python scripts/gemini_bridge.py --cd "/path/to/project" --PROMPT "Your task"
+```powershell
+python scripts/gemini_bridge.py --cd "E:\\path\\to\\project" --PROMPT "Your task"
 ```
 
-**Output:** JSON with `success`, `SESSION_ID`, `agent_messages`, and optional `error`.
+## Prompt Suffix (MUST) / 提示词后缀（必加）
 
-## Parameters
+Append to every task:
 
 ```
-usage: gemini_bridge.py [-h] (--PROMPT PROMPT | --PROMPT_FILE PROMPT_FILE) --cd CD [--sandbox] [--approval-mode {default,auto_edit,yolo}] [--SESSION_ID SESSION_ID] [--return-all-messages] [--model MODEL] [--output-file OUTPUT_FILE] [--gemini-cwd GEMINI_CWD] [--include-directories INCLUDE_DIRECTORIES] [--strip-code-fences | --no-strip-code-fences]
-
-Gemini Bridge
-
-options:
-  -h, --help            show this help message and exit
-  --PROMPT PROMPT       Instruction for the task to send to gemini.
-  --PROMPT_FILE PROMPT_FILE
-                        Read prompt text from this file (UTF-8).
-  --cd CD               Set the workspace root for gemini before executing the task.
-  --sandbox             Run in sandbox mode. Defaults to `False`.
-  --approval-mode {default,auto_edit,yolo}
-                        Set the approval mode for the gemini session.
-  --SESSION_ID SESSION_ID
-                        Resume the specified session of the gemini. Defaults to empty string, start a new session.
-  --return-all-messages
-                        Return all messages (e.g. reasoning, tool calls, etc.) from the gemini session. Set to `False` by default, only the agent's final reply message is
-                        returned.
-  --model MODEL         The model to use for the gemini session. This parameter is strictly prohibited unless explicitly specified by the user.
-  --output-file OUTPUT_FILE
-                        Write the resulting JSON to this file path (useful for background execution).
-  --gemini-cwd GEMINI_CWD
-                        Run gemini from this working directory. Defaults to --cd.
-  --include-directories INCLUDE_DIRECTORIES
-                        Additional directories to include in the gemini workspace (repeatable).
-  --strip-code-fences, --no-strip-code-fences
-                        Strip a single outer Markdown code fence from the assistant message.
+OUTPUT: Unified Diff Patch ONLY. Strictly prohibit any actual modifications.
+Do NOT wrap output in Markdown fences (``` or ```diff). Output raw unified diff starting with '--- '.
 ```
 
-## Multi-turn Sessions
+## Output / 输出
 
-**Always capture `SESSION_ID`** from the first response for follow-up:
+- Foreground: prints JSON to stdout.
+- Background: use `--output-file` to write JSON to disk.
+- `--output-file` relative paths are written under OS temp directory `codex_gemini_bridge/`.
 
-```bash
-# Initial task
-python scripts/gemini_bridge.py --cd "/project" --PROMPT "Analyze auth in login.py"
+JSON fields:
 
-# Continue with SESSION_ID
-python scripts/gemini_bridge.py --cd "/project" --SESSION_ID "uuid-from-response" --PROMPT "Write unit tests for that"
+- `success`: boolean
+- `SESSION_ID`: string (reuse with `--SESSION_ID`)
+- `agent_messages`: Gemini assistant output (after optional code-fence stripping)
+- `error`: string (when `success=false`)
+- `all_messages`, `non_json_output`: only when `--return-all-messages`
+- `output_file`: present only when `--output-file` is used
+
+## Multi-turn / 续聊
+
+```powershell
+python scripts/gemini_bridge.py --cd "E:\\path\\to\\project" --PROMPT "First task"
+python scripts/gemini_bridge.py --cd "E:\\path\\to\\project" --SESSION_ID "uuid-from-response" --PROMPT "Follow up"
 ```
 
-## Common Patterns
+## Key Args / 常用参数
 
-**Prototyping (request diffs):**
-```bash
-python scripts/gemini_bridge.py --cd "/project" --PROMPT "Generate unified diff to add logging"
-```
-
-**Debug with full trace:**
-```bash
-python scripts/gemini_bridge.py --cd "/project" --PROMPT "Debug this error" --return-all-messages
-```
+- `--cd`: workspace root for Gemini (Gemini reads project files itself via its CLI tools)
+- `--PROMPT` / `--PROMPT_FILE`: provide exactly one; prefer `--PROMPT_FILE` for long prompts on Windows
+- `--output-file`: recommended for background execution
+- `--approval-mode`: `default`/`auto_edit`/`yolo` (use `yolo` only when you explicitly need non-interactive tool calls)

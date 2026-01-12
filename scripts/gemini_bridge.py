@@ -13,6 +13,7 @@ import time
 import shutil
 import argparse
 import re
+import tempfile
 from pathlib import Path
 from typing import Generator
 
@@ -137,7 +138,29 @@ def strip_outer_code_fence(text: str) -> str:
     return extracted if extracted is not None else inner.strip("\n")
 
 
+def resolve_output_file(output_file: Path | None) -> Path | None:
+    if output_file is None:
+        return None
+
+    try:
+        output_file = output_file.expanduser()
+    except RuntimeError:
+        pass
+
+    if output_file.is_absolute():
+        return output_file
+
+    base_dir = Path(tempfile.gettempdir()) / "codex_gemini_bridge"
+    return base_dir / output_file
+
+
 def emit_result(result: dict, output_file: Path | None) -> None:
+    if output_file is not None and "output_file" not in result:
+        try:
+            result["output_file"] = output_file.absolute().as_posix()
+        except Exception:
+            result["output_file"] = str(output_file)
+
     result_json = json.dumps(result, indent=2, ensure_ascii=False)
 
     if output_file is not None:
@@ -162,12 +185,13 @@ def main():
     parser.add_argument("--SESSION_ID", default="", help="Resume the specified session of the gemini. Defaults to empty string, start a new session.")
     parser.add_argument("--return-all-messages", action="store_true", help="Return all messages (e.g. reasoning, tool calls, etc.) from the gemini session. Set to `False` by default, only the agent's final reply message is returned.")
     parser.add_argument("--model", default="", help="The model to use for the gemini session. This parameter is strictly prohibited unless explicitly specified by the user.")
-    parser.add_argument("--output-file", default=None, type=Path, help="Write the resulting JSON to this file path (useful for background execution).")
+    parser.add_argument("--output-file", default=None, type=Path, help="Write the resulting JSON to this file path (useful for background execution). Relative paths are written under the OS temp directory.")
     parser.add_argument("--gemini-cwd", default=None, type=Path, help="Run gemini from this working directory. Defaults to --cd.")
     parser.add_argument("--include-directories", action="append", default=[], help="Additional directories to include in the gemini workspace (repeatable).")
     parser.add_argument("--strip-code-fences", action=argparse.BooleanOptionalAction, default=True, help="Strip a single outer Markdown code fence from the assistant message.")
 
     args = parser.parse_args()
+    output_file = resolve_output_file(args.output_file)
 
     cd: Path = args.cd
     if not cd.exists():
@@ -175,7 +199,7 @@ def main():
             "success": False,
             "error": f"The workspace root directory `{cd.absolute().as_posix()}` does not exist. Please check the path and try again."
         }
-        emit_result(result, args.output_file)
+        emit_result(result, output_file)
         return
 
     PROMPT = args.PROMPT
@@ -183,7 +207,7 @@ def main():
         try:
             PROMPT = args.PROMPT_FILE.read_text(encoding="utf-8")
         except Exception as error:
-            emit_result({"success": False, "error": f"Failed to read --PROMPT_FILE: {error}"}, args.output_file)
+            emit_result({"success": False, "error": f"Failed to read --PROMPT_FILE: {error}"}, output_file)
             return
 
     if os.name == "nt":
@@ -287,7 +311,7 @@ def main():
         if non_json_output:
             result["non_json_output"] = non_json_output
 
-    emit_result(result, args.output_file)
+    emit_result(result, output_file)
 
 
 if __name__ == "__main__":
