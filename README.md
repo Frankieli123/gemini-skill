@@ -135,44 +135,52 @@ OUTPUT: Unified Diff Patch ONLY. Strictly prohibit any actual modifications.
 Do NOT wrap output in Markdown fences. Output raw unified diff starting with '--- '.
 ```
 
-### 💻 Usage
+### 💻 Usage (AI Agent Integration)
 
-#### Basic Usage (Foreground)
+This skill is designed to be **called by AI agents** (Codex, Claude, Cline), not for manual use.
 
-```powershell
-python scripts/gemini_bridge.py --cd "E:\path\to\project" --PROMPT "Your task here. OUTPUT: Unified Diff Patch ONLY."
+#### How It Works
+
+```
+┌─────────────────┐     delegates      ┌─────────────────┐
+│  Codex/Claude   │ ───────────────▶  │   Gemini CLI    │
+│  (Main Agent)   │                    │  (Sub-Agent)    │
+└─────────────────┘                    └─────────────────┘
+        │                                      │
+        │  applies diff                        │ returns unified diff
+        ◀──────────────────────────────────────┘
 ```
 
-#### Background Execution (Windows Recommended)
+#### Agent Invocation Example
+
+When Codex/Claude needs Gemini's help, it will automatically run:
 
 ```powershell
-$project = "E:\path\to\project"
-$prompt = @"
-Review the authentication flow.
+python scripts/gemini_bridge.py --cd "<project_path>" --PROMPT "<task_description>
+
 OUTPUT: Unified Diff Patch ONLY. Strictly prohibit any actual modifications.
-Do NOT wrap output in Markdown fences. Output raw unified diff starting with '--- '.
-"@
-
-$promptFile = Join-Path $env:TEMP ("codex_gemini_prompt_" + [guid]::NewGuid() + ".txt")
-$outFile = Join-Path $env:TEMP ("codex_gemini_" + [guid]::NewGuid() + ".json")
-Set-Content -LiteralPath $promptFile -Value $prompt -Encoding utf8
-
-Start-Process -FilePath python -ArgumentList "`"$env:USERPROFILE\.cline\skills\collaborating-with-gemini\scripts\gemini_bridge.py`" --cd `"$project`" --PROMPT_FILE `"$promptFile`" --output-file `"$outFile`"" -NoNewWindow -Wait
-
-$result = Get-Content -Raw $outFile | ConvertFrom-Json
-Remove-Item -Force $promptFile, $outFile
-$result.agent_messages
+Do NOT wrap output in Markdown fences. Output raw unified diff starting with '--- '."
 ```
 
-#### Multi-turn Conversation
+#### Multi-turn Conversation (Agent Managed)
 
 ```powershell
-# First turn
-python scripts/gemini_bridge.py --cd "E:\project" --PROMPT "Analyze the auth module. OUTPUT: Unified Diff Patch ONLY."
+# Agent's first call
+python scripts/gemini_bridge.py --cd "E:\project" --PROMPT "Analyze the auth module..."
 
-# Continue conversation (use SESSION_ID from previous response)
-python scripts/gemini_bridge.py --cd "E:\project" --SESSION_ID "uuid-from-response" --PROMPT "Now optimize the token validation. OUTPUT: Unified Diff Patch ONLY."
+# Agent continues with SESSION_ID from previous response
+python scripts/gemini_bridge.py --cd "E:\project" --SESSION_ID "<uuid-from-response>" --PROMPT "Follow up..."
 ```
+
+#### Triggering the Skill
+
+Simply ask your AI agent:
+
+- *"Use Gemini to review this authentication code"*
+- *"Ask Gemini to help debug this async issue"*
+- *"Have Gemini prototype a caching solution"*
+
+The agent will handle all script invocation and diff application automatically.
 
 ### 📊 Output Format
 
@@ -341,44 +349,52 @@ OUTPUT: Unified Diff Patch ONLY. Strictly prohibit any actual modifications.
 Do NOT wrap output in Markdown fences. Output raw unified diff starting with '--- '.
 ```
 
-### 💻 使用方法
+### 💻 使用方法（AI Agent 集成）
 
-#### 基本用法（前台运行）
+本技能设计为 **由 AI Agent 调用**（Codex、Claude、Cline），而非手动使用。
 
-```powershell
-python scripts/gemini_bridge.py --cd "E:\path\to\project" --PROMPT "你的任务描述。OUTPUT: Unified Diff Patch ONLY."
+#### 工作原理
+
+```
+┌─────────────────┐     委托任务       ┌─────────────────┐
+│  Codex/Claude   │ ───────────────▶  │   Gemini CLI    │
+│   (主 Agent)    │                    │   (子 Agent)    │
+└─────────────────┘                    └─────────────────┘
+        │                                      │
+        │  应用 diff                           │ 返回 unified diff
+        ◀──────────────────────────────────────┘
 ```
 
-#### 后台执行（Windows 推荐）
+#### Agent 调用示例
+
+当 Codex/Claude 需要 Gemini 帮助时，会自动运行：
 
 ```powershell
-$project = "E:\path\to\project"
-$prompt = @"
-审查认证流程。
+python scripts/gemini_bridge.py --cd "<项目路径>" --PROMPT "<任务描述>
+
 OUTPUT: Unified Diff Patch ONLY. Strictly prohibit any actual modifications.
-Do NOT wrap output in Markdown fences. Output raw unified diff starting with '--- '.
-"@
-
-$promptFile = Join-Path $env:TEMP ("codex_gemini_prompt_" + [guid]::NewGuid() + ".txt")
-$outFile = Join-Path $env:TEMP ("codex_gemini_" + [guid]::NewGuid() + ".json")
-Set-Content -LiteralPath $promptFile -Value $prompt -Encoding utf8
-
-Start-Process -FilePath python -ArgumentList "`"$env:USERPROFILE\.cline\skills\collaborating-with-gemini\scripts\gemini_bridge.py`" --cd `"$project`" --PROMPT_FILE `"$promptFile`" --output-file `"$outFile`"" -NoNewWindow -Wait
-
-$result = Get-Content -Raw $outFile | ConvertFrom-Json
-Remove-Item -Force $promptFile, $outFile
-$result.agent_messages
+Do NOT wrap output in Markdown fences. Output raw unified diff starting with '--- '."
 ```
 
-#### 多轮对话
+#### 多轮对话（Agent 自动管理）
 
 ```powershell
-# 第一轮对话
-python scripts/gemini_bridge.py --cd "E:\project" --PROMPT "分析认证模块。OUTPUT: Unified Diff Patch ONLY."
+# Agent 第一次调用
+python scripts/gemini_bridge.py --cd "E:\project" --PROMPT "分析认证模块..."
 
-# 继续对话（使用上次返回的 SESSION_ID）
-python scripts/gemini_bridge.py --cd "E:\project" --SESSION_ID "上次返回的uuid" --PROMPT "现在优化令牌验证。OUTPUT: Unified Diff Patch ONLY."
+# Agent 使用上次响应中的 SESSION_ID 继续对话
+python scripts/gemini_bridge.py --cd "E:\project" --SESSION_ID "<上次返回的uuid>" --PROMPT "继续优化..."
 ```
+
+#### 如何触发此技能
+
+只需向你的 AI Agent 提出请求：
+
+- *"用 Gemini 审查这段认证代码"*
+- *"让 Gemini 帮忙调试这个异步问题"*
+- *"请 Gemini 设计一个缓存方案的原型"*
+
+Agent 会自动处理脚本调用和 diff 应用。
 
 ### 📊 输出格式
 
